@@ -1,5 +1,6 @@
 #import yappi
 import cProfile
+import pstats
 import sys
 from PySide.QtCore import *
 from PySide.QtGui import *
@@ -391,12 +392,22 @@ if __name__ == "__main__":
         if not os.path.isdir(logfolder):
             os.makedirs(logfolder)
         logging.basicConfig(filename=os.path.join(logfolder,'facepager.log'),level=logging.ERROR,format='%(asctime)s %(levelname)s:%(message)s')
+
+        profile_file_bin = os.path.join(logfolder,'facepager-profile.bin')
+        profile_file_txt = os.path.join(logfolder,'facepager-profile.log')
     except Exception as e:
         print u"Error intitializing log file: {}".format(e.message)
     finally:
-        #cProfile.run('startMain()')
+        cProfile.run('startMain()',profile_file_bin)
+
+        profile_output = open(profile_file_txt, 'w');
+        p = pstats.Stats(profile_file_bin,stream=profile_output)
+        p.strip_dirs().sort_stats('cumtime')
+        p.print_stats()
+
+
         #yappi.start()
-        startMain()
+        #startMain()
         #yappi.print_stats()
 
 
