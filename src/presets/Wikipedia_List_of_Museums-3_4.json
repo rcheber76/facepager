@@ -1,0 +1,21 @@
+{
+  "columns": [
+    "tr.1.td _text_",
+    "tr.2.td _text_",
+    "tr.3.td _text_",
+    "tr.4.td _text_",
+    "tr.5.td _text_",
+    "tr.6.td _text_",
+    "tr.7.td _src_"
+  ],
+  "options": {
+    "urlpath": "http://de.wikipedia.org/wiki/Liste_der_Museen_in_Mecklenburg-Vorpommern",
+    "csskey": "table.wikitable",
+    "params": {},
+    "nodedata": null,
+    "objectid": "*.0._tagname_"
+  },
+  "name": "Wikipedia List of Museums",
+  "module": "Scrape",
+  "description": "Add an arbitrary node, e.g. \"Museums\" and fetch data. \n\nEach row of the scraped table will correspond to one record. Table cells can be accessed by keys in the column setup. \n\nNotice the whitespace in those keys. Whitespace lets you dig for deeper keys in the details (like css selectors)."
+}
