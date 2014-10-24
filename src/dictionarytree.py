@@ -66,6 +66,7 @@ class DictionaryTreeModel(QAbstractItemModel):
     def __init__(self, parent=None, dic={}):
         super(DictionaryTreeModel, self).__init__(parent)
         self.documentation = {}
+        self.ignoreDocumentation = ['Generic','Scrape']
         self.itemtype = None
         self.rootItem = DictionaryTreeItem(('root', {}), None,self)
         self.setdata(dic)
@@ -84,9 +85,11 @@ class DictionaryTreeModel(QAbstractItemModel):
             data = {'': data}
         items = data.items()
         #items.sort()
+        self.rootItem.childItemsCountAll = len(items)
         for item in items:
             newparent = DictionaryTreeItem(item, self.rootItem,self)
             self.rootItem.appendChild(newparent)
+        self.layoutChanged.emit()
 
     def getdata(self):
         key, val = self.rootItem.getValue()
@@ -161,6 +164,56 @@ class DictionaryTreeModel(QAbstractItemModel):
 
         return None
 
+    def hasChildren(self, index):
+        if not index.isValid():
+            item = self.rootItem
+        else:
+            item = index.internalPointer()
+
+        return item.childItemsCountAll > 0
+
+    def canFetchMore(self, index):
+        if not index.isValid():
+            item = self.rootItem
+        else:
+            item = index.internalPointer()
+        return item.childItemsCountAll > item.childCount()
+
+    def fetchMore(self, index):
+        if not index.isValid():
+            parent = self.rootItem
+        else:
+            parent = index.internalPointer()
+
+        if parent.childItemsCountAll == parent.childCount():
+            return False
+
+        row = parent.childCount()
+        self.beginInsertRows(index, row, row + parent.childItemsCountAll - 1)
+
+        if isinstance(parent.childData, dict):
+            for item in parent.childData.iteritems():
+                parent.appendChild(DictionaryTreeItem(item, parent,self))
+            parent.childData = None
+
+        elif isinstance(parent.childData, list):
+            for idx, item in enumerate(parent.childData):
+                parent.appendChild(DictionaryTreeItem((idx, item), parent,self))
+            parent.childData = None
+
+#
+#         for item in items:
+#             itemdata = self.getItemData(item)
+#             new = TreeItem(self, parent, item.id, itemdata)
+#             new._childcountall = item.childcount
+#             new._childcountallloaded = True
+#             parent.appendChild(new)
+#             self.createIndex(row, 0, index)
+#             row += 1
+
+        self.endInsertRows()
+
+
     def index(self, row, column, parent):
         if not self.hasIndex(row, column, parent):
             return QModelIndex()
@@ -206,26 +259,33 @@ class DictionaryTreeItem(object):
         self.model = model
         self.parentItem = parentItem
         self.childItems = []
+        self.childItemsCountAll = 0
+        self.childData=None
 
         self.itemDataKey = key
         self.itemDataValue = value
         self.itemDataType = 'atom'
 
-        self.itemToolTip = self.model.getDocumentation(self.keyPath())
+        self.itemToolTip = self.model.getDocumentation(self.keyPath()) if (not model.itemtype in self.model.ignoreDocumentation) else ""
+
 
         if isinstance(value, dict):
             items = value.items()
+            self.childItemsCountAll = len(items)
+            self.childData=value
             self.itemDataValue = '{' + str(len(items)) + '}'
             self.itemDataType = 'dict'
-            #items.sort()
-            for item in items:
-                self.appendChild(DictionaryTreeItem(item, self,self.model))
+
+#             for item in items:
+#                 self.appendChild(DictionaryTreeItem(item, self,self.model))
 
         elif isinstance(value, list):
+            self.childItemsCountAll = len(value)
             self.itemDataValue = '[' + str(len(value)) + ']'
             self.itemDataType = 'list'
-            for idx, item in enumerate(value):
-                self.appendChild(DictionaryTreeItem((idx, item), self,self.model))
+            self.childData=value
+#             for idx, item in enumerate(value):
+#                 self.appendChild(DictionaryTreeItem((idx, item), self,self.model))
 
         elif isinstance(value, (int, long)):
             self.itemDataType = 'atom'
@@ -235,9 +295,9 @@ class DictionaryTreeItem(object):
             self.itemDataType = 'atom'
             self.itemDataValue = value
 
-
     def clear(self):
         self.childItems = []
+        self.childItemsCountAll = 0
 
     def appendChild(self, item):
         self.childItems.append(item)
