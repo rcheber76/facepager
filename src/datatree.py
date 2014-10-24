@@ -285,30 +285,6 @@ class TreeItem(object):
         self.model.database.session.commit()
         self.model.layoutChanged.emit()
 
-    def htmlToJson(self, key):
-        dbnode = Node.query.get(self.id)
-
-        html = getDictValue(dbnode.response, key, False)
-#         if not (type(nodes) is list):
-#             return False
-
-        newnodes = []
-        new = Node(dbnode.objectid, dbnode.id)
-        new.objecttype = 'converted'
-        new.response = {'content':htmlToJson(html)}
-        new.level = dbnode.level + 1
-        new.querystatus = dbnode.querystatus
-        new.querytime = dbnode.querytime
-        new.querytype = dbnode.querytype
-        new.queryparams = dbnode.queryparams
-        newnodes.append(new)
-
-        self.model.database.session.add_all(newnodes)
-        self._childcountall += len(newnodes)
-        dbnode.childcount += len(newnodes)
-        self.model.database.session.commit()
-        self.model.layoutChanged.emit()
-
 class TreeModel(QAbstractItemModel):
     def __init__(self,database=None):
         super(TreeModel, self).__init__()
@@ -459,10 +435,6 @@ class TreeModel(QAbstractItemModel):
               ]
         for key in self.customcolumns:
             row.append(getDictValue(node.data['response'], key))
-#             if node.data['querytype'] == 'Scrape':
-#                 row.append(scrapeValue(node.data['response'], key))
-#             else:
-#                 row.append(getDictValue(node.data['response'], key))
         return row
 
 
@@ -487,11 +459,6 @@ class TreeModel(QAbstractItemModel):
             return item.data['querytype']
         else:
             return getDictValue(item.data['response'], self.customcolumns[index.column() - 5])
-#             if item.data['querytype'] == 'Scrape':
-#                 return scrapeValue(item.data['response'], self.customcolumns[index.column() - 5])
-#             else:
-#                 return getDictValue(item.data['response'], self.customcolumns[index.column() - 5])
-
 
     def hasChildren(self, index):
         if not self.database.connected:

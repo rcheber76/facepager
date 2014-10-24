@@ -402,21 +402,6 @@ class Actions(object):
         except Exception as e:
             self.mainWindow.logmessage(e)
 
-    @Slot()
-    def htmlToJson(self):
-        try:
-            key = self.mainWindow.detailTree.selectedKey()
-            if key == '':
-                return False
-            selected = self.mainWindow.tree.selectionModel().selectedRows()
-            for item in selected:
-                if not item.isValid():
-                    continue
-                treenode = item.internalPointer()
-                treenode.htmlToJson(key)
-        except Exception as e:
-            self.mainWindow.logmessage(e)
-
 
     @Slot()
     def expandDetails(self):

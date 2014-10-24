@@ -148,23 +148,6 @@ def recursiveIterKeys(value,prefix=None):
 def htmlToJson(data,csskey=None):
     soup = BeautifulSoup(data)
 
-#
-#     def parseSoup(element):
-#         out = OrderedDict()
-#         for attr in element.attrs:
-#             out[str(len(out))+'_'+attr+'_'] = element[attr]
-#         for child in element.children:
-#             if isinstance(child,NavigableString):
-#                 value = unicode(child).strip("\n\t ")
-#                 if value != '':
-#                     out[str(len(out))+'_text_'] = value
-#             elif isinstance(child,Tag):
-#                 id = str(child.get('id',''))
-#                 key = child.name+'#'+id if id != '' else child.name
-#                 out[str(len(out))+"_"+key] = parseSoup(child)
-#
-#         return out
-
     def parseSoup(element):
         out = []
         out.append({'_tagname_'+element.name})
@@ -184,12 +167,8 @@ def htmlToJson(data,csskey=None):
     output = []
     if csskey is not None:
         for part in soup.select(csskey):
-            #output.extend([val for key,val in parseSoup(part).iteritems()])
-            #output.append(parseSoup(part))
             output.extend(parseSoup(part))
     else:
-        #output.extend([val for key,val in parseSoup(soup).iteritems()])
-        #output.append(parseSoup(soup))
         output.extend(parseSoup(soup))
 
     return output
