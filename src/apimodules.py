@@ -1162,7 +1162,7 @@ class ScrapeTab(ApiTab):
         options['params'] = self.paramEdit.getParams()
         options['nodedata'] = self.extractEdit.currentText() if self.extractEdit.currentText() != "" else None
         options['csskey'] = self.extractCssEdit.currentText() if self.extractCssEdit.currentText() != "" else None
-        options['objectid'] = '_name_'
+        options['objectid'] = '*.0._tagname_'
 
         return options
 

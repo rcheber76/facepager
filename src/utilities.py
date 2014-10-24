@@ -1,6 +1,7 @@
 import json
 from bs4 import BeautifulSoup,NavigableString,Tag
 from collections import OrderedDict
+import re
 
 def hasDictValue(data,multikey):
     try:
@@ -43,47 +44,55 @@ def searchDictKeys(value,search):
 
 def getDictValue(data,multikey,dump=True):
     try:
-        keys=multikey.split('.',1)
-        if len(keys) == 1:
-            dumptype = keys[0].split(' ',1)
-            keys[0] = dumptype[0]
-            dumptype = dumptype[1] if len(dumptype) > 1 else None
+        keys = re.split("([\. ])", multikey)
 
+        def diveDown(data,keys,deep = False):
+            values = []
+            if len(keys) == 0:
+                if not deep:
+                    values.append(data)
+            elif keys[0] == '.':
+                values.extend(diveDown(data,keys[1:],deep))
+            elif isinstance(data,list) and keys[0] == ' ':
+                for val in data:
+                    values.extend(diveDown(val,keys[1:],True))
+            elif isinstance(data,dict) and keys[0] == ' ':
+                for key in data:
+                    values.extend(diveDown(data[key],keys[1:],True))
+            elif isinstance(data,dict) and keys[0] in data:
+                values.extend(diveDown(data[keys[0]],keys[1:],False))
+            elif isinstance(data,list) and keys[0].isdigit() and int(keys[0]) < len(data):
+                values.extend(diveDown(data[int(keys[0])],keys[1:],False))
+            elif isinstance(data,list) and keys[0] == '*':
+                for val in data:
+                    values.extend(diveDown(val,keys[1:],deep))
+            elif isinstance(data,dict) and keys[0] == '*':
+                for key in data:
+                    values.extend(diveDown(data[key],keys[1:],deep))
+            elif deep and isinstance(data,list):
+                for val in data:
+                    values.extend(diveDown(val,keys,deep))
+            elif deep and isinstance(data,dict):
+                 for key in data:
+                    values.extend(diveDown(data[key],keys,deep))
 
-        try:
-            if isinstance(data,dict) and (keys[0] != ''):
-                value=data[keys[0]]
-            elif type(data) is list and keys[0] != '':
-                value=data[int(keys[0])]
-            elif keys[0] == '':
-                value = data
-            else:
-                value = ''
+            return values
 
-            if len(keys) > 1:
-                value = getDictValue(value,keys[1],dump)
-        except:
-            if keys[0] == '*':
-                listkey = keys[1] if len(keys) > 1 else ''
+        values = diveDown(data,keys)
 
-                valuelist=[]
-                if isinstance(data,dict):
-                    data = [data[key] for key in data]
-                for elem in data:
-                    valuelist.append(getDictValue(elem,listkey,dump))
-                value = ";".join([val for val in valuelist if val !=""])
-            else:
-                value = ''
-
-        if dump and (isinstance(value,dict) or type(value) is list):
-            if dumptype is not None:
-                return searchDictKeys(value,dumptype)
-            else:
-                return json.dumps(value)
-        elif dump and (isinstance(value, (int, long))):
-            return str(value)
+        if not dump:
+            return values[0] if len(values) else ""
         else:
-            return value
+            def dumpValue(value):
+                if isinstance(value,dict) or isinstance(value,list):
+                    return json.dumps(value)
+                elif isinstance(value, (int, long)):
+                    return str(value)
+                else:
+                    return value
+
+            return ";".join([dumpValue(val) for val in values if val != ""])
+
     except Exception as e:
         return ""
 
@@ -148,11 +157,12 @@ def recursiveIterKeys(value,prefix=None):
 def htmlToJson(data,csskey=None):
     soup = BeautifulSoup(data)
 
-    def parseSoup(element):
+    def parseSoup(element,context = True):
         out = []
-        out.append({'_tagname_'+element.name})
-        for attr in element.attrs:
-            out.append({'_'+attr+'_':element[attr]})
+        if context:
+            out.append({'_tagname_':element.name})
+            for attr in element.attrs:
+                out.append({'_'+attr+'_':element[attr]})
         for child in element.children:
             if isinstance(child,NavigableString):
                 value = unicode(child).strip("\n\t ")
@@ -167,9 +177,9 @@ def htmlToJson(data,csskey=None):
     output = []
     if csskey is not None:
         for part in soup.select(csskey):
-            output.extend(parseSoup(part))
+            output.extend(parseSoup(part,False))
     else:
-        output.extend(parseSoup(soup))
+        output.extend(parseSoup(soup,False))
 
     return output
 
