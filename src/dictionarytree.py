@@ -4,7 +4,7 @@ import json
 import re
 import os
 import sys
-
+from collections import OrderedDict
 class DictionaryTree(QTreeView):
     def __init__(self, parent=None):
         super(DictionaryTree, self).__init__(parent)
@@ -77,6 +77,9 @@ class DictionaryTreeModel(QAbstractItemModel):
     def setdata(self, data,itemtype="Generic"):
         self.reset()
         self.itemtype = itemtype
+
+        if isinstance(data, list):
+            data = OrderedDict((no,val) for (no,val) in enumerate(data))
         if not isinstance(data, dict):
             data = {'': data}
         items = data.items()

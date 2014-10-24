@@ -67,9 +67,13 @@ class Actions(object):
         self.actionUnpack.setToolTip("Unpacks a list in the JSON-data and creates a new node containing the list content")
         self.actionUnpack.triggered.connect(self.unpackList)
 
-        self.actionHtml = self.detailActions.addAction(QIcon(":/icons/unpack.png"),"Html2Json")
-        self.actionHtml.setToolTip("Converts Html to Json")
-        self.actionHtml.triggered.connect(self.htmlToJson)
+        self.actionUnpackAll = self.detailActions.addAction(QIcon(":/icons/unpack.png"),"Unpack All")
+        self.actionUnpackAll.setToolTip("Unpacks the complete detail data by creating a new node for every top level key")
+        self.actionUnpackAll.triggered.connect(self.unpackListAll)
+
+#         self.actionHtml = self.detailActions.addAction(QIcon(":/icons/unpack.png"),"Html2Json")
+#         self.actionHtml.setToolTip("Converts Html to Json")
+#         self.actionHtml.triggered.connect(self.htmlToJson)
 
         self.actionJsonCopy = self.detailActions.addAction(QIcon(":/icons/toclip.png"),"Copy JSON to Clipboard")
         self.actionJsonCopy.setToolTip("Copy the selected JSON-data to the clipboard")
@@ -376,6 +380,19 @@ class Actions(object):
             key = self.mainWindow.detailTree.selectedKey()
             if key == '':
                 return False
+            selected = self.mainWindow.tree.selectionModel().selectedRows()
+            for item in selected:
+                if not item.isValid():
+                    continue
+                treenode = item.internalPointer()
+                treenode.unpackList(key)
+        except Exception as e:
+            self.mainWindow.logmessage(e)
+
+    @Slot()
+    def unpackListAll(self):
+        try:
+            key = ''
             selected = self.mainWindow.tree.selectionModel().selectedRows()
             for item in selected:
                 if not item.isValid():

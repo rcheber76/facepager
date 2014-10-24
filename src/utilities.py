@@ -6,7 +6,7 @@ def hasDictValue(data,multikey):
     try:
         keys=multikey.split('.',1)
 
-        if type(data) is dict and keys[0] != '':
+        if isinstance(data,dict) and keys[0] != '':
             if len(keys) > 1:
                 value=data.get(keys[0],"")
                 value = hasDictValue(value,keys[1])
@@ -20,38 +20,66 @@ def hasDictValue(data,multikey):
     except Exception as e:
         return False
 
+def dictToText(value):
+    if isinstance(value,dict):
+        return " ".join([dictToText(value[key]) for key in value])
+    elif isinstance(value,list):
+        return " ".join([dictToText(lval) for lval in value])
+    elif isinstance(value, (int, long)):
+        return str(value)
+    else:
+        return value
+
+def searchDictKeys(value,search):
+    if isinstance(value,dict):
+        out = [dictToText(value[key]) if key == search else searchDictKeys(value[key],search) for key in value]
+    elif isinstance(value,list):
+        out = [searchDictKeys(lval,search) for lval in value]
+    else:
+        return ""
+
+    return " ".join([val for val in out if val != ""]).strip("\n\t ")
+
+
 def getDictValue(data,multikey,dump=True):
     try:
         keys=multikey.split('.',1)
+        if len(keys) == 1:
+            dumptype = keys[0].split(' ',1)
+            keys[0] = dumptype[0]
+            dumptype = dumptype[1] if len(dumptype) > 1 else None
 
-        if type(data) is dict and keys[0] != '':
-            value=data.get(keys[0],"")
+
+        try:
+            if isinstance(data,dict) and (keys[0] != ''):
+                value=data[keys[0]]
+            elif type(data) is list and keys[0] != '':
+                value=data[int(keys[0])]
+            elif keys[0] == '':
+                value = data
+            else:
+                value = ''
+
             if len(keys) > 1:
                 value = getDictValue(value,keys[1],dump)
-
-        elif type(data) is list and keys[0] != '':
-            try:
-                value=data[int(keys[0])]
-                if len(keys) > 1:
-                    value = getDictValue(value,keys[1],dump)
-            except:
-                if keys[0] == '*' and len(keys) > 1:
-                    listkey = keys[1]
-                elif keys[0] == '*':
-                    listkey = ''
-                else:
-                    listkey = keys[0]
+        except:
+            if keys[0] == '*':
+                listkey = keys[1] if len(keys) > 1 else ''
 
                 valuelist=[]
+                if isinstance(data,dict):
+                    data = [data[key] for key in data]
                 for elem in data:
                     valuelist.append(getDictValue(elem,listkey,dump))
-                value = ";".join(valuelist)
+                value = ";".join([val for val in valuelist if val !=""])
+            else:
+                value = ''
 
-        else:
-            value = data
-
-        if dump and (type(value) is dict or type(value) is list):
-            return json.dumps(value)
+        if dump and (isinstance(value,dict) or type(value) is list):
+            if dumptype is not None:
+                return searchDictKeys(value,dumptype)
+            else:
+                return json.dumps(value)
         elif dump and (isinstance(value, (int, long))):
             return str(value)
         else:
@@ -63,7 +91,7 @@ def filterDictValue(data,multikey,dump=True):
     try:
         keys=multikey.split('.',1)
 
-        if type(data) is dict and keys[0] != '':
+        if isinstance(data,dict) and keys[0] != '':
             value = { key: data[key] for key in data.keys() if key != keys[0]}
             if len(keys) > 1:
                 value[keys[0]] = filterDictValue(data[keys[0]],keys[1],False)
@@ -94,7 +122,7 @@ def filterDictValue(data,multikey,dump=True):
             value = ''
 
 
-        if dump and (type(value) is dict or type(value) is list):
+        if dump and (isinstance(value,dict) or type(value) is list):
             return json.dumps(value)
         else:
             return value
@@ -103,21 +131,43 @@ def filterDictValue(data,multikey,dump=True):
         return ""
 
 def recursiveIterKeys(value,prefix=None):
-    for key in value.iterkeys():
-        if type(value[key]) is dict:
-            for subkey in recursiveIterKeys(value[key],key):
+    if isinstance(value,dict):
+        keys = value.iterkeys()
+    elif isinstance(value,list):
+        keys = range(len(value))
+
+    for key in keys:
+        if isinstance(value[key],dict) or isinstance(value[key],list):
+            for subkey in recursiveIterKeys(value[key],str(key)):
                 fullkey = subkey if prefix is None else ".".join([prefix,subkey])
                 yield fullkey
         else:
-            fullkey = key if prefix is None else ".".join([prefix,key])
+            fullkey = str(key) if prefix is None else ".".join([prefix,str(key)])
             yield fullkey
 
 def htmlToJson(data,csskey=None):
     soup = BeautifulSoup(data)
 
+#
+#     def parseSoup(element):
+#         out = OrderedDict()
+#         for attr in element.attrs:
+#             out[str(len(out))+'_'+attr+'_'] = element[attr]
+#         for child in element.children:
+#             if isinstance(child,NavigableString):
+#                 value = unicode(child).strip("\n\t ")
+#                 if value != '':
+#                     out[str(len(out))+'_text_'] = value
+#             elif isinstance(child,Tag):
+#                 id = str(child.get('id',''))
+#                 key = child.name+'#'+id if id != '' else child.name
+#                 out[str(len(out))+"_"+key] = parseSoup(child)
+#
+#         return out
 
     def parseSoup(element):
         out = []
+        out.append({'_tagname_'+element.name})
         for attr in element.attrs:
             out.append({'_'+attr+'_':element[attr]})
         for child in element.children:
@@ -129,14 +179,18 @@ def htmlToJson(data,csskey=None):
                 id = str(child.get('id',''))
                 key = child.name+'#'+id if id != '' else child.name
                 out.append({key:parseSoup(child)})
-
         return out
 
+    output = []
     if csskey is not None:
-        output = []
         for part in soup.select(csskey):
+            #output.extend([val for key,val in parseSoup(part).iteritems()])
+            #output.append(parseSoup(part))
             output.extend(parseSoup(part))
     else:
-        output = parseSoup(soup)
-    return [output]
+        #output.extend([val for key,val in parseSoup(soup).iteritems()])
+        #output.append(parseSoup(soup))
+        output.extend(parseSoup(soup))
+
+    return output
 

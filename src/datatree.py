@@ -225,7 +225,7 @@ class TreeItem(object):
 
         #extracted nodes
         for n in nodes:
-            o = dbnode.objectid if options.get('objectid') == None else getDictValue(n, options.get('objectid', ""))
+            o = dbnode.objectid if options.get('objectid',None) == None else getDictValue(n, options.get('objectid', ""))
             appendNode('data', o, n)
 
             #Offcut
@@ -251,13 +251,25 @@ class TreeItem(object):
         dbnode = Node.query.get(self.id)
 
         nodes = getDictValue(dbnode.response, key, False)
-        if not (type(nodes) is list):
+
+        if isinstance(nodes,list):
+            nodes = OrderedDict( (no,val) for (no,val) in enumerate(nodes) )
+
+        if not isinstance(nodes,dict):
             return False
+
+
+#         if isinstance(nodes,dict):
+#             nodes = [dvalue for dkey,dvalue in nodes.iteritems()]
+#
+#         if not (type(nodes) is list):
+#             return False
 
         # extract nodes
         newnodes = []
-        for n in nodes:
-            new = Node(dbnode.objectid, dbnode.id)
+        for no in nodes:
+            n = nodes[no]
+            new = Node(no, dbnode.id)
             new.objecttype = 'unpacked'
             new.response = n
             new.level = dbnode.level + 1
