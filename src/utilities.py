@@ -2,6 +2,7 @@ import json
 from bs4 import BeautifulSoup,NavigableString,Tag
 from collections import OrderedDict
 import re
+import html5lib
 
 def hasDictValue(data,multikey):
     try:
@@ -155,7 +156,7 @@ def recursiveIterKeys(value,prefix=None):
             yield fullkey
 
 def htmlToJson(data,csskey=None):
-    soup = BeautifulSoup(data)
+    soup = BeautifulSoup(data,'html5')
 
     def parseSoup(element,context = True):
         out = []

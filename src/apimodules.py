@@ -264,6 +264,69 @@ class ApiTab(QWidget):
             else:
                 return response
 
+    def download(self, path, args=None, headers=None, outfile = None, outdict = False,options = {}):
+        """
+        Download files ...
+        Uses the request-method without converting to json
+        (argument jsonify==True)
+        """
+        foldername = outfile.get('foldername',None) if outfile is not None else None
+        filename = outfile.get('filename',None) if outfile is not None else None
+        fileext = outfile.get('fileext',None) if outfile is not None else None
+
+        def makefilename(foldername=None, filename=None, fileext=None):  # Create file name
+            url_filename, url_fileext = os.path.splitext(os.path.basename(path))
+            if not fileext:
+                fileext = url_fileext
+            if not filename:
+                filename = url_filename
+
+            filename = re.sub(ur'[^a-zA-Z0-9_.-]+', '', filename)
+            fileext = re.sub(ur'[^a-zA-Z0-9_.-]+', '', fileext)
+
+            filetime = time.strftime("%Y-%m-%d-%H-%M-%S")
+            filenumber = 1
+
+            while True:
+                fullfilename = os.path.join(foldername,
+                                            filename + '.' + filetime + '-' + str(filenumber) + str(fileext))
+                if (os.path.isfile(fullfilename)):
+                    filenumber = filenumber + 1
+                else:
+                    break
+            return fullfilename
+
+        response = self.request(path, args, headers, jsonify=False,speed=options.get('speed',None))
+        data = {'sourcepath': path, 'sourcequery': args}
+        # Handle the response of the generic, non-json-returning response
+        if response.status_code == 200:
+            content = ""
+            for chunk in response.iter_content(1024):
+                content += chunk
+
+            #Save to dict
+            if outdict:
+                data['content'] = content
+
+            #Save to file if directory given
+            if (foldername != "") and os.path.isdir(foldername):
+                if not fileext:
+                    guessed_ext = guess_all_extensions(response.headers["content-type"])
+                    fileext = guessed_ext[-1] if len(guessed_ext) > 0 else None
+
+                fullfilename = makefilename(foldername, filename, fileext)
+                with open(fullfilename, 'wb') as f:
+                    f.write(content)
+
+                data['filename'] =  os.path.basename(fullfilename)
+                data['filepath'] = fullfilename
+
+            status = 'downloaded' + ' (' + str(response.status_code) + ')'
+        else:
+            status = 'error' + ' (' + str(response.status_code) + ')'
+
+        return data, dict(response.headers), status
+
     def disconnectSocket(self):
         """Used to disconnect when canceling requests"""
         self.connected = False
@@ -987,56 +1050,6 @@ class FilesTab(ApiTab):
         self.setLayout(mainLayout)
         if loadSettings: self.loadSettings()
 
-    def download(self, path, args=None, headers=None, foldername=None, filename=None, fileext=None):
-        """
-        Download files ...
-        Uses the request-method without converting to json
-        (argument jsonify==True)
-        """
-
-        def makefilename(foldername=None, filename=None, fileext=None):  # Create file name
-            url_filename, url_fileext = os.path.splitext(os.path.basename(path))
-            if not fileext:
-                fileext = url_fileext
-            if not filename:
-                filename = url_filename
-
-            filename = re.sub(ur'[^a-zA-Z0-9_.-]+', '', filename)
-            fileext = re.sub(ur'[^a-zA-Z0-9_.-]+', '', fileext)
-
-            filetime = time.strftime("%Y-%m-%d-%H-%M-%S")
-            filenumber = 1
-
-            while True:
-                fullfilename = os.path.join(foldername,
-                                            filename + '-' + filetime + '-' + str(filenumber) + str(fileext))
-                if (os.path.isfile(fullfilename)):
-                    filenumber = filenumber + 1
-                else:
-                    break
-            return fullfilename
-
-        response = self.request(path, args, headers, jsonify=False)
-
-        # Handle the response of the generic, non-json-returning response
-        if response.status_code == 200:
-            if not fileext:
-                guessed_ext = guess_all_extensions(response.headers["content-type"])
-                fileext = guessed_ext[-1] if len(guessed_ext) > 0 else None
-
-            fullfilename = makefilename(foldername, filename, fileext)
-            with open(fullfilename, 'wb') as f:
-                for chunk in response.iter_content(1024):
-                    f.write(chunk)
-            data = {'filename': os.path.basename(fullfilename), 'filepath': fullfilename, 'sourcepath': path,
-                    'sourcequery': args}
-            status = 'downloaded' + ' (' + str(response.status_code) + ')'
-        else:
-            data = {'sourcepath': path, 'sourcequery': args}
-            status = 'error' + ' (' + str(response.status_code) + ')'
-
-        return data, dict(response.headers), status
-
     def selectFolder(self):
         datadir = self.mainWindow.settings.value('lastpath', os.path.expanduser('~'))
         self.folderEdit.setText(
@@ -1068,23 +1081,23 @@ class FilesTab(ApiTab):
 
     def fetchData(self, nodedata, options=None, callback=None):
         self.connected = True
-        foldername = options.get('folder', None)
-        if (foldername is None) or (not os.path.isdir(foldername)):
-            raise Exception("Folder does not exists, select download folder, please!")
-        filename = options.get('filename', None)
-        fileext = options.get('fileext', None)
 
+        fileout = {}
+        fileout['foldername'] = options.get('folder', None)
+        fileout['filename'] = self.parsePlaceholders(options.get('filename', None),nodedata)
+        fileout['fileext'] = self.parsePlaceholders(options.get('fileext', None),nodedata)
+
+        if (fileout['foldername'] is None) or (not os.path.isdir(fileout['foldername'])):
+            raise Exception("Folder does not exists, select download folder, please!")
 
 
         urlpath, urlparams = self.getURL(options["urlpath"], options["params"], nodedata)
-        filename = self.parsePlaceholders(filename,nodedata)
-        fileext = self.parsePlaceholders(fileext,nodedata)
 
         self.mainWindow.logmessage(u"Downloading file for {0} from {1}".format(nodedata['objectid'],
                                                                               urlpath + "?" + urllib.urlencode(
                                                                                   urlparams)))
 
-        data, headers, status = self.download(urlpath, urlparams, None, foldername,filename,fileext)
+        data, headers, status = self.download(urlpath, urlparams, None, fileout,False,options)
         options['querytime'] = str(datetime.now())
         options['querystatus'] = status
         if callback is None:
@@ -1117,6 +1130,30 @@ class ScrapeTab(ApiTab):
                                           'doc':"The value in the Object ID-column of the datatree."}])
         mainLayout.addRow("Parameters", self.paramEdit)
 
+       #Download folder
+        folderlayout = QHBoxLayout()
+
+        self.folderEdit = QLineEdit()
+        folderlayout.addWidget(self.folderEdit)
+
+        self.folderButton = QPushButton("...", self)
+        self.folderButton.clicked.connect(self.selectFolder)
+        folderlayout.addWidget(self.folderButton)
+
+        mainLayout.addRow("Folder", folderlayout)
+
+        #filename
+        self.filenameEdit = QComboBox(self)
+        self.filenameEdit.insertItems(0, ['<None>'])
+        self.filenameEdit.setEditable(True)
+        mainLayout.addRow("Custom filename", self.filenameEdit)
+
+        #fileext
+        self.fileextEdit = QComboBox(self)
+        self.fileextEdit.insertItems(0, ['<None>'])
+        self.fileextEdit.setEditable(True)
+        mainLayout.addRow("Custom file extension", self.fileextEdit)
+
         #Extract option
         self.extractCssEdit = QComboBox(self)
         self.extractCssEdit.setEditable(True)
@@ -1130,33 +1167,20 @@ class ScrapeTab(ApiTab):
         self.setLayout(mainLayout)
         if loadSettings: self.loadSettings()
 
-    def download(self, path, args=None, headers=None):
-        """
-        Download files ...
-        Uses the request-method without converting to json
-        (argument jsonify==True)
-        """
-
-        response = self.request(path, args, headers, jsonify=False)
-
-        # Handle the response of the generic, non-json-returning response
-        if response.status_code == 200:
-            data = ""
-            for chunk in response.iter_content(1024):
-                data += chunk
-            status = 'downloaded' + ' (' + str(response.status_code) + ')'
-        else:
-            data = ""
-            status = 'error' + ' (' + str(response.status_code) + ')'
-
-        return data, dict(response.headers), status
-
+    def selectFolder(self):
+        datadir = self.mainWindow.settings.value('lastpath', os.path.expanduser('~'))
+        self.folderEdit.setText(
+            QFileDialog.getExistingDirectory(self, 'Select Download Folder', datadir, QFileDialog.ShowDirsOnly))
 
     def getOptions(self, purpose='fetch'):  # purpose = 'fetch'|'settings'|'preset'
         options = {}
 
         if purpose != 'preset':
             options['querytype'] = self.name
+
+        options['folder'] = self.folderEdit.text()
+        options['filename'] = self.filenameEdit.currentText()
+        options['fileext'] = self.fileextEdit.currentText()
 
         options['urlpath'] = self.urlpathEdit.currentText()
         options['params'] = self.paramEdit.getParams()
@@ -1171,17 +1195,31 @@ class ScrapeTab(ApiTab):
         self.paramEdit.setParams(options.get('params',{} ))
         self.extractCssEdit.setEditText(options.get('csskey', ''))
         self.extractEdit.setEditText(options.get('nodedata', ''))
+        self.folderEdit.setText(options.get('folder', ''))
+        self.filenameEdit.setEditText(options.get('filename', '<None>'))
+        self.fileextEdit.setEditText(options.get('fileext', '<None>'))
+
 
     def fetchData(self, nodedata, options=None, callback=None):
         self.connected = True
+        fileout = {}
+        fileout['foldername'] = options.get('folder', None)
+        fileout['filename'] = self.parsePlaceholders(options.get('filename', None),nodedata)
+        fileout['fileext'] = self.parsePlaceholders(options.get('fileext', None),nodedata)
+
+        if (fileout['foldername'] is None) or (not os.path.isdir(fileout['foldername'])):
+            self.mainWindow.logmessage(u"Download folder does not exist. Data will be stored in database only.")
+
+            raise Exception("Folder does not exists, select download folder, please!")
 
         urlpath, urlparams = self.getURL(options["urlpath"], options["params"], nodedata)
-        self.mainWindow.logmessage(u"Downloading file for {0} from {1}".format(nodedata['objectid'],
+
+        self.mainWindow.logmessage(u"Scraping file for {0} from {1}".format(nodedata['objectid'],
                                                                               urlpath + "?" + urllib.urlencode(
                                                                                   urlparams)))
 
-        data, headers, status = self.download(urlpath, urlparams, None)
-        data = htmlToJson(data,options.get('csskey',''))
+        data, headers, status = self.download(urlpath, urlparams, None, fileout,True,options)
+        data['content'] = htmlToJson(data.get('content',''),options.get('csskey',''))
 
         options['querytime'] = str(datetime.now())
         options['querystatus'] = status
