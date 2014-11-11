@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup,NavigableString,Tag
 from collections import OrderedDict
 import re
 import html5lib
+import lxml
 
 def hasDictValue(data,multikey):
     try:
@@ -155,8 +156,9 @@ def recursiveIterKeys(value,prefix=None):
             fullkey = str(key) if prefix is None else ".".join([prefix,str(key)])
             yield fullkey
 
-def htmlToJson(data,csskey=None):
-    soup = BeautifulSoup(data,'html5')
+def htmlToJson(data,csskey=None,type='lxml'):
+    #type='html5'
+    soup = BeautifulSoup(data,type)
 
     def parseSoup(element,context = True):
         out = []
