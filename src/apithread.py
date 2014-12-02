@@ -2,6 +2,8 @@ import Queue
 import threading
 import time
 
+from PySide.QtGui import *
+from PySide.QtCore import *
 
 class ApiThreadPool():
     def __init__(self, module,logcallback):
@@ -82,9 +84,9 @@ class ApiThreadPool():
                     self.removeThread()
 
 
-class ApiThread(threading.Thread):
+class ApiThread(QThread):
     def __init__(self, input, output, module, pool,logcallback):
-        threading.Thread.__init__(self)
+        QThread.__init__(self, None)
         #self.daemon = True
         self.pool = pool
         self.input = input

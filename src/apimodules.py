@@ -8,8 +8,13 @@ import sys
 import time
 from collections import OrderedDict
 import threading
+import pydevd
 
-from PySide.QtWebKit import QWebView, QWebPage
+#from PySide.QtWebKit import QWebView, QWebPage
+from PySide.QtWebKit import *
+from PySide.QtCore import Qt, QUrl
+from PySide.QtGui import QApplication, QImage, QPainter
+
 import requests
 from requests.exceptions import *
 from rauth import OAuth1Service
@@ -19,6 +24,7 @@ from paramedit import *
 
 from utilities import *
 from credentials import *
+
 
 
 class ApiTab(QWidget):
@@ -264,6 +270,28 @@ class ApiTab(QWidget):
             else:
                 return response
 
+    def makefilename(self,foldername=None, filename=None, fileext=None,path=None):  # Create file name
+        url_filename, url_fileext = os.path.splitext(os.path.basename(path))
+        if not fileext:
+            fileext = url_fileext
+        if not filename:
+            filename = url_filename
+
+        filename = re.sub(ur'[^a-zA-Z0-9_.-]+', '', filename)
+        fileext = re.sub(ur'[^a-zA-Z0-9_.-]+', '', fileext)
+
+        filetime = time.strftime("%Y-%m-%d-%H-%M-%S")
+        filenumber = 1
+
+        while True:
+            fullfilename = os.path.join(foldername,
+                                        filename[:100] + '.' + filetime + '-' + str(filenumber) + str(fileext))
+            if (os.path.isfile(fullfilename)):
+                filenumber = filenumber + 1
+            else:
+                break
+        return fullfilename
+
     def download(self, path, args=None, headers=None, outfile = None, outdict = False,options = {}):
         """
         Download files ...
@@ -273,28 +301,6 @@ class ApiTab(QWidget):
         foldername = outfile.get('foldername',None) if outfile is not None else None
         filename = outfile.get('filename',None) if outfile is not None else None
         fileext = outfile.get('fileext',None) if outfile is not None else None
-
-        def makefilename(foldername=None, filename=None, fileext=None):  # Create file name
-            url_filename, url_fileext = os.path.splitext(os.path.basename(path))
-            if not fileext:
-                fileext = url_fileext
-            if not filename:
-                filename = url_filename
-
-            filename = re.sub(ur'[^a-zA-Z0-9_.-]+', '', filename)
-            fileext = re.sub(ur'[^a-zA-Z0-9_.-]+', '', fileext)
-
-            filetime = time.strftime("%Y-%m-%d-%H-%M-%S")
-            filenumber = 1
-
-            while True:
-                fullfilename = os.path.join(foldername,
-                                            filename + '.' + filetime + '-' + str(filenumber) + str(fileext))
-                if (os.path.isfile(fullfilename)):
-                    filenumber = filenumber + 1
-                else:
-                    break
-            return fullfilename
 
         response = self.request(path, args, headers, jsonify=False,speed=options.get('speed',None))
         data = {'sourcepath': path, 'sourcequery': args}
@@ -314,7 +320,7 @@ class ApiTab(QWidget):
                     guessed_ext = guess_all_extensions(response.headers["content-type"])
                     fileext = guessed_ext[-1] if len(guessed_ext) > 0 else None
 
-                fullfilename = makefilename(foldername, filename, fileext)
+                fullfilename = self.makefilename(foldername, filename, fileext,path)
                 with open(fullfilename, 'wb') as f:
                     f.write(content)
 
@@ -326,6 +332,9 @@ class ApiTab(QWidget):
             status = 'error' + ' (' + str(response.status_code) + ')'
 
         return data, dict(response.headers), status
+
+
+
 
     def disconnectSocket(self):
         """Used to disconnect when canceling requests"""
@@ -1104,8 +1113,17 @@ class FilesTab(ApiTab):
 
 
 class ScrapeTab(ApiTab):
+    #screenshot needs signal because webpage can only be rendered in main thread
+    screenshotRequested = Signal(str,str)
+
     def __init__(self, mainWindow=None, loadSettings=True):
         super(ScrapeTab, self).__init__(mainWindow, "Scrape")
+
+        #screenshot needs signal because webpage can only be rendered in main thread
+        self.screenshooter= ScreenShooter()
+        self.screenshooter.log.connect(mainWindow.logmessage)
+        self.screenshotRequested.connect(self.screenshooter.shoot)
+
         mainLayout = QFormLayout()
         mainLayout.setRowWrapPolicy(QFormLayout.DontWrapRows)
         mainLayout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
@@ -1164,6 +1182,7 @@ class ScrapeTab(ApiTab):
         self.setLayout(mainLayout)
         if loadSettings: self.loadSettings()
 
+
     def selectFolder(self):
         datadir = self.mainWindow.settings.value('lastpath', os.path.expanduser('~'))
         self.folderEdit.setText(
@@ -1198,6 +1217,7 @@ class ScrapeTab(ApiTab):
 
 
     def fetchData(self, nodedata, options=None, callback=None):
+        pydevd.settrace(suspend=False) #for debugging threads
         self.connected = True
         fileout = {}
         fileout['foldername'] = options.get('folder', None)
@@ -1220,6 +1240,27 @@ class ScrapeTab(ApiTab):
 
         options['querytime'] = str(datetime.now())
         options['querystatus'] = status
+
+        #screenshot (needs signal because webpage can only be rendered in main thread)
+        if data.get('filepath',None) is not None:
+            filename = data.get('filepath')+'.png'
+            url = urlpath if urlparams is None else urlpath + '?' + "&".join([param+"="+args[param] for param in urlparams])
+
+
+            @Slot(str,str)
+            def screenshotDone(s_url,s_filename):
+                if (s_url == url) and (s_filename == filename):
+                    data['screenshot'] = filename
+
+            data['screenshot'] = False
+            self.screenshooter.done.connect(screenshotDone)
+            self.screenshotRequested.emit(url, filename)
+
+            while (not data['screenshot']) and self.connected:
+                QApplication.processEvents()
+                time.sleep(0)
+
+
         if callback is None:
             self.streamingData.emit(data, options, headers)
         else:
@@ -1260,3 +1301,95 @@ class QWebPageCustom(QWebPage):
         url = unicode(reply.url().toString())
         reply.ignoreSslErrors()
         self.logmessage.emit("SSL certificate error ignored: %s (Warning: Your connection might be insecure!)" % url)
+
+# class ScreenShooter (QWebPageCustom):
+#     def __init__(self, url,filename,logcallback):
+#         QWebPageCustom.__init__(self)
+#         self.logmessage.connect(logcallback)
+#
+#         self.url = url
+#         self.filename = filename
+#         self.finished = False
+#
+#         # Settings
+#         s = self.settings()
+#         s.setAttribute(QWebSettings.JavascriptCanOpenWindows, False)
+#         s.setAttribute(QWebSettings.PluginsEnabled, True)
+#         self.mainFrame().setScrollBarPolicy(Qt.Horizontal, Qt.ScrollBarAlwaysOff)
+#
+#         # When page is loaded, callback saves image to file
+#         self.unsupportedContent.connect(self._unsupportedContent)
+#         self.loadProgress.connect(self._loadProgress)
+#         self.loadFinished.connect(self._loadFinished)
+#
+#         self.mainFrame().load(QUrl(url))
+#
+#     def _unsupportedContent(self,reply):
+#         print reply
+#
+#     def _loadProgress(self, progress):
+#         print progress
+#
+#
+#     def _loadFinished(self, result):
+#          frame = self.mainFrame()
+#          size = frame.contentsSize()
+#          size.setWidth(1366)
+#          self.setViewportSize(size)
+#
+#          image = QImage(self.viewportSize(), QImage.Format_ARGB32)
+#
+#          painter = QPainter(image)
+#          frame.render(painter)
+#          painter.end()
+#
+#          image.save(self.filename)
+#
+#          self.finished = True
+
+class ScreenShooter(QObject):
+    # To be emitted when every items are downloaded
+    done = Signal(str,str)
+    log = Signal(str)
+
+    def __init__(self,  parent = None):
+        super(ScreenShooter, self).__init__(parent)
+        self.finished = False
+        self.shootlock = threading.Lock()
+
+        self.page = QWebPage(self)
+        self.page.loadFinished.connect(self.save)
+
+    def shoot(self,url,filename):
+        self.shootlock.acquire()
+        self.finished = False
+        try:
+            self.url = url
+            self.filename = filename
+            self.page.mainFrame().load(self.url)
+        except Exception as e:
+            self.log.emit(e)
+            self.finished = True
+            self.shootlock.release()
+
+
+    def save(self, ok):
+        try:
+            if ok:
+                size = self.page.mainFrame().contentsSize()
+                size.setWidth(1366)
+                self.page.setViewportSize(size)
+                image = QImage(self.page.viewportSize(), QImage.Format_ARGB32)
+                painter = QPainter(image)
+                self.page.mainFrame().render(painter)
+                painter.end()
+                image.save(self.filename)
+            else:
+                self.log.emit("Error while screenshooting %s"%self.url)
+
+        except Exception as e:
+            self.log.emit(e)
+        finally:
+            self.finished = True
+            self.shootlock.release()
+            self.done.emit(self.url,self.filename)

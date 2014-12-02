@@ -215,7 +215,7 @@ class MainWindow(QMainWindow):
         self.RequestTabs.addTab(FilesTab(self),"Files")
         self.RequestTabs.addTab(TwitterStreamingTab(self),"Twitter Streaming")
         self.RequestTabs.addTab(ScrapeTab(self),"Scrape")
-
+        self.RequestTabs.setCurrentIndex(int(self.settings.value('module',0)))
 
         #Fetch settings
 
@@ -304,6 +304,9 @@ class MainWindow(QMainWindow):
         self.settings.endGroup()
 
         self.settings.setValue('columns',self.fieldList.toPlainText())
+        self.settings.setValue('module',self.RequestTabs.currentIndex())
+
+
 
         for i in range(self.RequestTabs.count()):
             self.RequestTabs.widget(i).saveSettings()
