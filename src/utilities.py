@@ -5,6 +5,9 @@ import re
 import html5lib
 import lxml
 
+import lxml.html
+from lxml.cssselect import CSSSelector
+
 def hasDictValue(data,multikey):
     try:
         keys=multikey.split('.',1)
@@ -156,33 +159,65 @@ def recursiveIterKeys(value,prefix=None):
             fullkey = str(key) if prefix is None else ".".join([prefix,str(key)])
             yield fullkey
 
+# def htmlToJson(data,csskey=None,type='lxml'):
+#     #type='html5'
+#     soup = BeautifulSoup(data,type)
+#
+#     def parseSoup(element,context = True):
+#         out = []
+#         if context:
+#             out.append({'_tagname_':element.name})
+#             for attr in element.attrs:
+#                 out.append({'_'+attr+'_':element[attr]})
+#         for child in element.children:
+#             if isinstance(child,NavigableString):
+#                 value = unicode(child).strip("\n\t ")
+#                 if value != '':
+#                     out.append({'_text_':value})
+#             elif isinstance(child,Tag):
+#                 id = str(child.get('id',''))
+#                 key = child.name+'#'+id if id != '' else child.name
+#                 out.append({key:parseSoup(child)})
+#         return out
+#
+#     output = []
+#     if csskey is not None:
+#         for part in soup.select(csskey):
+#             output.extend(parseSoup(part,False))
+#     else:
+#         output.extend(parseSoup(soup,False))
+#
+#     return output
+
+
 def htmlToJson(data,csskey=None,type='lxml'):
     #type='html5'
-    soup = BeautifulSoup(data,type)
+    soup = lxml.html.fromstring(data)
 
     def parseSoup(element,context = True):
         out = []
         if context:
-            out.append({'_tagname_':element.name})
-            for attr in element.attrs:
-                out.append({'_'+attr+'_':element[attr]})
-        for child in element.children:
-            if isinstance(child,NavigableString):
-                value = unicode(child).strip("\n\t ")
+            out.append({'_tagname_':element.tag})
+            out.append({'_text_':unicode(element.text).strip("\n\t ")})
+            for name, value in sorted(element.items()):
+                out.append({'_'+name+'_':value})
+        for child in element:
+            if isinstance(child.tag, basestring):
+                id = str(child.get('id',''))
+                key = child.tag+'#'+id if id != '' else child.tag
+                out.append({key:parseSoup(child)})
+            else:
+                value = unicode(child.text).strip("\n\t ")
                 if value != '':
                     out.append({'_text_':value})
-            elif isinstance(child,Tag):
-                id = str(child.get('id',''))
-                key = child.name+'#'+id if id != '' else child.name
-                out.append({key:parseSoup(child)})
+
         return out
 
     output = []
     if csskey is not None:
-        for part in soup.select(csskey):
-            output.extend(parseSoup(part,False))
+        for part in soup.cssselect(csskey):
+            output.extend(parseSoup(part,True))
     else:
         output.extend(parseSoup(soup,False))
 
     return output
-

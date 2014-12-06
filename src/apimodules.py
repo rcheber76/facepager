@@ -1242,23 +1242,23 @@ class ScrapeTab(ApiTab):
         options['querystatus'] = status
 
         #screenshot (needs signal because webpage can only be rendered in main thread)
-        if data.get('filepath',None) is not None:
-            filename = data.get('filepath')+'.png'
-            url = urlpath if urlparams is None else urlpath + '?' + "&".join([param+"="+args[param] for param in urlparams])
-
-
-            @Slot(str,str)
-            def screenshotDone(s_url,s_filename):
-                if (s_url == url) and (s_filename == filename):
-                    data['screenshot'] = filename
-
-            data['screenshot'] = False
-            self.screenshooter.done.connect(screenshotDone)
-            self.screenshotRequested.emit(url, filename)
-
-            while (not data['screenshot']) and self.connected:
-                QApplication.processEvents()
-                time.sleep(0)
+#         if data.get('filepath',None) is not None:
+#             filename = data.get('filepath')+'.png'
+#             url = urlpath if urlparams is None else urlpath + '?' + "&".join([param+"="+args[param] for param in urlparams])
+#
+#
+#             @Slot(str,str)
+#             def screenshotDone(s_url,s_filename):
+#                 if (s_url == url) and (s_filename == filename):
+#                     data['screenshot'] = filename
+#
+#             data['screenshot'] = False
+#             self.screenshooter.done.connect(screenshotDone)
+#             self.screenshotRequested.emit(url, filename)
+#
+#             while (not data['screenshot']) and self.connected:
+#                 QApplication.processEvents()
+#                 time.sleep(0)
 
 
         if callback is None:
