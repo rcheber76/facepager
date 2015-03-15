@@ -15,19 +15,15 @@ class HelpWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         vLayout = QVBoxLayout(central)
-        browser = QWebView(central)
+        self.browser = QWebView(central)
 
         if getattr(sys, 'frozen', False):
             application_path = os.path.dirname(sys.executable)
         elif __file__:
             application_path = os.path.dirname(__file__)
 
-        browser.load(QUrl("http://htmlpreview.github.io/?https://github.com/strohne/Facepager/blob/master/src/help/help.html"))
-        browser.page().setLinkDelegationPolicy(QWebPage.DelegateExternalLinks)
-        browser.page().linkClicked.connect(self.linkClicked)
-
-
-        vLayout.addWidget(browser)
+        #self.loadPage()
+        vLayout.addWidget(self.browser)
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
         hLayout.addStretch(5)
@@ -37,5 +33,22 @@ class HelpWindow(QMainWindow):
         hLayout.addWidget(dismiss)
         #browser.setBackgroundRole(QPalette.Window)
 
+
+    def show(self):
+        super(HelpWindow,self).show()
+        self.loadPage()
+
+
+    def loadPage(self):
+        self.browser.load(QUrl("http://htmlpreview.github.io/?https://github.com/strohne/Facepager/blob/master/src/help/help.html"))
+        self.browser.page().setLinkDelegationPolicy(QWebPage.DelegateExternalLinks)
+        self.browser.page().linkClicked.connect(self.linkClicked)
+
+
     def linkClicked(self,url):
-        webbrowser.open(url.toString() )
+        url = url.toString()
+        if url.startswith("http://htmlpreview.github.io/?https://github.com/strohne/Facepager/blob/master/src/help/help.html"):
+            self.browser.load(url)
+        else:
+            webbrowser.open(url)
+

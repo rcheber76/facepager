@@ -8,6 +8,7 @@ import lxml
 import lxml.html
 from lxml.cssselect import CSSSelector
 
+
 def hasDictValue(data,multikey):
     try:
         keys=multikey.split('.',1)
@@ -221,3 +222,4 @@ def htmlToJson(data,csskey=None,type='lxml'):
         output.extend(parseSoup(soup,False))
 
     return output
+

@@ -75,14 +75,10 @@ class Actions(object):
 #         self.actionHtml.setToolTip("Converts Html to Json")
 #         self.actionHtml.triggered.connect(self.htmlToJson)
 
+
         self.actionJsonCopy = self.detailActions.addAction(QIcon(":/icons/toclip.png"),"Copy JSON to Clipboard")
         self.actionJsonCopy.setToolTip("Copy the selected JSON-data to the clipboard")
         self.actionJsonCopy.triggered.connect(self.jsonCopy)
-
-        #Tree actions
-        self.actionExpandDetails = self.detailActions.addAction(QIcon(":/icons/expand.png"), "Expand nodes")
-        self.actionExpandDetails.triggered.connect(self.expandDetails)
-
 
         #Tree actions
         self.treeActions = QActionGroup(self.mainWindow)
@@ -504,7 +500,7 @@ class Actions(object):
                         progress.showInfo('threads',u"{} active thread(s)".format(threadpool.getThreadCount()))
 
                         #auto cancel after three consecutive errors, ignore on streaming-tab
-                        if status == 'fetched (200)' or 'stream':
+                        if (status == 'fetched (200)') or (status == 'stream'):
                             errorcount=0
                         else:
                             errorcount += 1

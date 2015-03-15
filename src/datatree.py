@@ -285,6 +285,7 @@ class TreeItem(object):
         self.model.database.session.commit()
         self.model.layoutChanged.emit()
 
+
 class TreeModel(QAbstractItemModel):
     def __init__(self,database=None):
         super(TreeModel, self).__init__()
@@ -459,6 +460,7 @@ class TreeModel(QAbstractItemModel):
             return item.data['querytype']
         else:
             return getDictValue(item.data['response'], self.customcolumns[index.column() - 5])
+
 
     def hasChildren(self, index):
         if not self.database.connected:
