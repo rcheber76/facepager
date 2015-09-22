@@ -4,7 +4,7 @@ from __future__ import unicode_literals
 
 AUTHOR = u'Facepager Dev-Team'
 SITENAME = u'Facepager'
-SITEURL = ''
+SITEURL = 'strohne.github.io/Facepager/'
 
 PATH = 'content'
 
